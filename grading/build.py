@@ -27,21 +27,14 @@ def markings(page, size, outline):
             res.append(r)
     return res
 
-def draw_run(page, r, layer, oc, shift=(0,0)):
-    dx,dy=shift
+def run_items(page, r, layer):
+    """original drawings making up a marking run -> list of (items, dashes, type, closePath)"""
+    res=[]
     for x in out[page]:
         if x['layer']==layer and r['first']<=x['seqno']<=r['last'] and x['type']=='s':
-            for it in x['items']:
-                if it[0]=='l': pts=[it[1],it[2]]
-                elif it[0]=='c': pts=None
-                else: continue
-                dash=None if x['dashes'] in ('[] 0',None) else x['dashes']
-                if it[0]=='l':
-                    shape.draw_line(fitz.Point(pts[0].x+dx,pts[0].y+dy),fitz.Point(pts[1].x+dx,pts[1].y+dy))
-                else:
-                    a,b,c,d=it[1:5]
-                    shape.draw_bezier(a,b,c,d)
-                shape.finish(color=COLOR,width=WIDTH*0.6,dashes=dash,closePath=False,oc=oc)
+            its=[it for it in x['items'] if it[0] in 'lc']
+            if its: res.append((its, x['dashes'], 's', False))
+    return res
 
 LABEL_SKIP={(2,3084),(2,3085)}   # C/D and E/F cup cut lines on zipper facing (E/F is the cutting line itself)
 
@@ -57,27 +50,31 @@ def add_notch(G, pt, depth=14.0, half=8.0):
     V=np.array([q-half*t, q+depth*nrm, q+half*t])
     return np.vstack([G[:i+1],V,G[i+1:]])
 
-def copy_labels(page, G, oc):
+def label_items(page, G):
     """fold/placement/trim lines and grainlines from the Labels layer that belong to this piece"""
-    path=Path(G); n=0
+    path=Path(G); res=[]
     for x in out[page]:
         if x['layer']!='Labels' or (page,x['seqno']) in LABEL_SKIP: continue
         if any(it[0] in ('qu','re') for it in x['items']): continue      # label boxes
         r=x['rect']; c=((r.x0+r.x1)/2,(r.y0+r.y1)/2)
         if not (path.contains_point(c) or path.contains_point(c,radius=4) or path.contains_point(c,radius=-4)): continue
-        for it in x['items']:
-            if it[0]=='l': shape.draw_line(it[1],it[2])
-            elif it[0]=='c': shape.draw_bezier(*it[1:5])
-        fill=COLOR if x['type'] in ('f','fs') else None
-        stroke=COLOR if x['type'] in ('s','fs') else None
-        dash=None if x.get('dashes') in ('[] 0',None) else x['dashes']
-        shape.finish(color=stroke, fill=fill, width=WIDTH*0.6, dashes=dash, closePath=bool(x.get('closePath')) or fill is not None, oc=oc)
-        n+=1
-    return n
+        its=[it for it in x['items'] if it[0] in 'lc']
+        if its: res.append((its, x.get('dashes'), x['type'], bool(x.get('closePath')), x['seqno']))
+    return res
 
-def run_piece(pc, oc):
-    global doc_page, shape
-    page=pc['page']; doc_page=doc[page]
+def piece_markings(pc, G, mark_size):
+    """markings for a piece: size-layer markings (dart, dots, placement, lengthen) + Labels lines"""
+    page=pc['page']; res=[]
+    for s in (SIZES if pc['mode']!='fixed' else (pc['size'],)):
+        own=loop_for(page,s,pc['near'])[0]
+        for r in markings(page,s,own):
+            if mark_size(np.array(r['pts']).mean(0))==s:
+                res+= [(i,d,t,c,None) for i,d,t,c in run_items(page,r,s)]
+    return res + label_items(page,G)
+
+def piece_outline(pc):
+    """final graded cutting line (closed polyline, page coords) and marking-size chooser"""
+    page=pc['page']
     if pc['mode']=='fixed':
         s=pc['size']; P,_=loop_for(page,s,pc['near']); G=P
         if 'post' in pc: G=pc['post'](G)
@@ -87,20 +84,23 @@ def run_piece(pc, oc):
         mark_size=pc['mark']
     G=rdp(np.vstack([G,G[:1]]))[:-1]
     for np_ in pc.get('notches',[]): G=add_notch(G,np_)
-    shape=doc_page.new_shape()
+    return G, mark_size
+
+def run_piece(pc, oc):
+    page=pc['page']; shape=doc[page].new_shape()
+    G, mark_size = piece_outline(pc)
     shape.draw_polyline([fitz.Point(*p) for p in G]); shape.finish(color=COLOR, width=WIDTH, closePath=True, lineJoin=1, oc=oc)
-    # markings: from the size chosen at each marking's location
-    base=loop_for(page,'24' if pc['mode']!='fixed' else pc['size'],pc['near'])[0]
-    seen=0
-    for s in (SIZES if pc['mode']!='fixed' else (pc['size'],)):
-        own=loop_for(page,s,pc['near'])[0]
-        for r in markings(page,s,own):
-            c=np.array(r['pts']).mean(0)
-            if mark_size(c)==s:
-                draw_run(page,r,s,oc); seen+=1
-    seen+=copy_labels(page,G,oc)
+    M=piece_markings(pc, G, mark_size)
+    for its,dash,typ,closed,_ in M:
+        for it in its:
+            if it[0]=='l': shape.draw_line(it[1],it[2])
+            else: shape.draw_bezier(*it[1:5])
+        fill=COLOR if typ in ('f','fs') else None
+        stroke=COLOR if typ in ('s','fs') else None
+        dash=None if dash in ('[] 0',None) else dash
+        shape.finish(color=stroke, fill=fill, width=WIDTH*0.6, dashes=dash, closePath=closed or fill is not None, oc=oc)
     shape.commit()
-    return G, seen
+    return G, len(M)
 
 if __name__=="__main__":
     from pieces import PIECES
