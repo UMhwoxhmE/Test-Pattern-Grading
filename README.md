@@ -7,6 +7,9 @@ with a cutting line blended between sizes. The original artwork and size layers 
 - Upper pieces: size 20 above the side dart, smooth blend to 22 at the waist seam.
 - Lower pieces: 22 at the waist seam, smooth blend to 24 at the hip notch (~7.7" below waist), 24 below.
 - Markings on lower pieces (pockets) come from size 24.
+- Bust size 20 only: sleeve + sleeve lining (full bicep), cuff, hood pieces, brim, neckline facings,
+  zipper flap, zipper facing (cut at the E/F cup line).
+- Hip size 24: pocket, pocket flap, hem facings.
 
 Run: `PATTERN_PDF=path/to/pattern.pdf GRADED_PDF=out.pdf python3 build.py` (needs pymupdf, numpy, matplotlib).
 Pieces and blend settings are in `pieces.py`. The pattern PDF itself is not committed.

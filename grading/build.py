@@ -47,7 +47,8 @@ def run_piece(pc, oc):
     global doc_page, shape
     page=pc['page']; doc_page=doc[page]
     if pc['mode']=='fixed':
-        s=pc['size']; P,_=loop_for(page,s,pc['near']); G=P; tfun=lambda p: 0
+        s=pc['size']; P,_=loop_for(page,s,pc['near']); G=P
+        if 'post' in pc: G=pc['post'](G)
         mark_size=lambda c: s
     else:
         G,_=blend(matched(page,pc['near']), pc['t'])
