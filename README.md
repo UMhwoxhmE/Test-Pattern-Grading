@@ -10,6 +10,8 @@ with a cutting line blended between sizes. The original artwork and size layers 
 - Bust size 20 only: sleeve + sleeve lining (full bicep), cuff, hood pieces, brim, neckline facings,
   zipper flap, zipper facing (cut at the E/F cup line).
 - Hip size 24: pocket, pocket flap, hem facings.
+- Fold, placement and trim lines and grainlines from the Labels layer are copied onto the graded layer,
+  so it can be printed on its own. Pocket gets notches at both ends of its fold line.
 
 Run: `PATTERN_PDF=path/to/pattern.pdf GRADED_PDF=out.pdf python3 build.py` (needs pymupdf, numpy, matplotlib).
 Pieces and blend settings are in `pieces.py`. The pattern PDF itself is not committed.

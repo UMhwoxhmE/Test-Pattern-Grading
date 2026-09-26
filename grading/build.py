@@ -43,6 +43,38 @@ def draw_run(page, r, layer, oc, shift=(0,0)):
                     shape.draw_bezier(a,b,c,d)
                 shape.finish(color=COLOR,width=WIDTH*0.6,dashes=dash,closePath=False,oc=oc)
 
+LABEL_SKIP={(2,3084),(2,3085)}   # C/D and E/F cup cut lines on zipper facing (E/F is the cutting line itself)
+
+def add_notch(G, pt, depth=14.0, half=8.0):
+    """cut a V notch into closed polyline G at the point of G nearest pt"""
+    pt=np.asarray(pt,float); n=len(G); best=None
+    for i in range(n):
+        a,b=G[i],G[(i+1)%n]; ab=b-a; u=np.clip(np.dot(pt-a,ab)/max(np.dot(ab,ab),1e-9),0,1)
+        q=a+u*ab; dd=np.linalg.norm(pt-q)
+        if best is None or dd<best[0]: best=(dd,i,q,ab/np.linalg.norm(ab))
+    _,i,q,t=best; nrm=np.array([-t[1],t[0]])
+    if not Path(G).contains_point(q+nrm*3): nrm=-nrm
+    V=np.array([q-half*t, q+depth*nrm, q+half*t])
+    return np.vstack([G[:i+1],V,G[i+1:]])
+
+def copy_labels(page, G, oc):
+    """fold/placement/trim lines and grainlines from the Labels layer that belong to this piece"""
+    path=Path(G); n=0
+    for x in out[page]:
+        if x['layer']!='Labels' or (page,x['seqno']) in LABEL_SKIP: continue
+        if any(it[0] in ('qu','re') for it in x['items']): continue      # label boxes
+        r=x['rect']; c=((r.x0+r.x1)/2,(r.y0+r.y1)/2)
+        if not (path.contains_point(c) or path.contains_point(c,radius=4) or path.contains_point(c,radius=-4)): continue
+        for it in x['items']:
+            if it[0]=='l': shape.draw_line(it[1],it[2])
+            elif it[0]=='c': shape.draw_bezier(*it[1:5])
+        fill=COLOR if x['type'] in ('f','fs') else None
+        stroke=COLOR if x['type'] in ('s','fs') else None
+        dash=None if x.get('dashes') in ('[] 0',None) else x['dashes']
+        shape.finish(color=stroke, fill=fill, width=WIDTH*0.6, dashes=dash, closePath=bool(x.get('closePath')) or fill is not None, oc=oc)
+        n+=1
+    return n
+
 def run_piece(pc, oc):
     global doc_page, shape
     page=pc['page']; doc_page=doc[page]
@@ -53,7 +85,8 @@ def run_piece(pc, oc):
     else:
         G,_=blend(matched(page,pc['near']), pc['t'])
         mark_size=pc['mark']
-    G=rdp(np.vstack([G,G[:1]]))
+    G=rdp(np.vstack([G,G[:1]]))[:-1]
+    for np_ in pc.get('notches',[]): G=add_notch(G,np_)
     shape=doc_page.new_shape()
     shape.draw_polyline([fitz.Point(*p) for p in G]); shape.finish(color=COLOR, width=WIDTH, closePath=True, lineJoin=1, oc=oc)
     # markings: from the size chosen at each marking's location
@@ -65,6 +98,7 @@ def run_piece(pc, oc):
             c=np.array(r['pts']).mean(0)
             if mark_size(c)==s:
                 draw_run(page,r,s,oc); seen+=1
+    seen+=copy_labels(page,G,oc)
     shape.commit()
     return G, seen
 

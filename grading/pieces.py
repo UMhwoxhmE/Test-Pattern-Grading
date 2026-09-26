@@ -48,7 +48,7 @@ PIECES=[
  dict(name='Sleeve Lining Full Bicep (p10)', page=9, near=(1242,1186), **fixed('20')),
  # ---- hip size 24: pockets and hem facings (pieces identical in all sizes marked *)
  dict(name='Pocket Flap* (p1)',         page=0, near=(1354,324),  **fixed('24')),
- dict(name='Pocket* (p1)',              page=0, near=(1373,976),  **fixed('24')),
+ dict(name='Pocket* (p1)',              page=0, near=(1373,976),  notches=[(1058,764.5),(1689,764.5)], **fixed('24')),  # fold line notches
  dict(name='Back Hem Facing (p1)',      page=0, near=(2071,2718), **fixed('24')),
  dict(name='Front Hem Facing (p1)',     page=0, near=(1649,2520), **fixed('24')),
  dict(name='Pocket Interfacing* (p3)',  page=2, near=(464,261),   **fixed('24')),
